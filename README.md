@@ -27,9 +27,23 @@ EXAMPLE:
 
 ## Cross Build on Linux
 
+### Generic
+
 Install `mingw-w64-gcc` and follow instructs in https://wiki.archlinux.org/title/Rust#Windows to setup build environment.
 
 ```bash
 $ cargo build --target x86_64-pc-windows-gnu
 $ ls ./target/x86_64-pc-windows-gnu/*/*.exe
+```
+
+### Nix
+
+1. Follow https://nixos.org/download.html#download-nix to setup Nix environment or install `nix` from your package manager
+2. Enable Nix flakes experimental features, see https://nixos.wiki/wiki/Flakes
+
+```bash
+$ nix build
+$ # in fully qualified path
+$ nix build .#packages.x86_64-linux.default
+$ ls ./result/bin
 ```
