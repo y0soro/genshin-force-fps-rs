@@ -16,7 +16,7 @@ USAGE:
   genshin-force-fps.exe [OPTIONS] [GAME_ARGS]
 OPTIONS:
   -h, --help                Prints help information
-  -n, --no-disable-async    Don't force disable VSync
+  -n, --no-disable-async    Don't forcibly disable VSync
   -f, --fps NUMBER          Force game FPS, defaults to 120
   -o, --open PATH           Path to GenshinImpact.exe/YuanShen.exe
 ARGS:

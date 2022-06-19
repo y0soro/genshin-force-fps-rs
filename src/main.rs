@@ -97,7 +97,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let p_fps = scan_fps_ptr(&ps, &m)?;
     let p_vsync = scan_vsync_ptr(&ps, &m)?;
 
-    eprintln!("scan success: p_fps:{:?}, p:vsync{:?}", p_fps, p_vsync);
+    eprintln!("scan success: p_fps:{:?}, p_vsync:{:?}", p_fps, p_vsync);
     drop(m);
 
     loop {
@@ -139,7 +139,7 @@ fn scan_fps_ptr(_ps: &Process, m: &Module) -> Result<*mut u8, Box<dyn Error>> {
         .pattern_scan("7F 0F 8B 05 ? ? ? ?")
         .ok_or("FPS anchor pattern not found")?;
     unsafe {
-        let rel = *(p_fps_anchor.add(4) as *mut i32) as isize;
+        let rel = *(m.snapshot_addr(p_fps_anchor.add(4)) as *mut i32) as isize;
         Ok(p_fps_anchor.offset(rel + 8))
     }
 }
@@ -149,13 +149,13 @@ fn scan_vsync_ptr(ps: &Process, m: &Module) -> Result<*mut u8, Box<dyn Error>> {
         .pattern_scan("E8 ? ? ? ? 8B E8 49 8B 1E")
         .ok_or("VSync anchor pattern not found")?;
     unsafe {
-        let rel = *(p_vsync_anchor.add(1) as *mut i32) as isize;
+        let rel = *(m.snapshot_addr(p_vsync_anchor.add(1)) as *mut i32) as isize;
         let p_func_read_vsync = p_vsync_anchor.offset(rel + 5);
 
-        let rel = *(p_func_read_vsync.add(3) as *mut i32) as isize;
-        let pp_vsync_base = p_func_read_vsync.offset(rel);
+        let rel = *(m.snapshot_addr(p_func_read_vsync.add(3)) as *mut i32) as isize;
+        let pp_vsync_base = p_func_read_vsync.offset(rel + 7);
 
-        let vsync_offset = (p_func_read_vsync.add(9) as *mut i32) as isize;
+        let vsync_offset = *(m.snapshot_addr(p_func_read_vsync.add(9)) as *mut i32) as isize;
 
         let p_vsync_base = loop {
             let p = ps.read::<u64>(pp_vsync_base)?;

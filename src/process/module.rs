@@ -23,6 +23,16 @@ impl Module {
             Some(self.entry.modBaseAddr.add(offset))
         }
     }
+
+    pub fn snapshot_addr(&self, ps_addr: *mut u8) -> *mut u8 {
+        unsafe {
+            let offset = ps_addr.offset_from(self.entry.modBaseAddr);
+            if offset < 0 || offset >= self.entry.modBaseSize as isize {
+                panic!("out of bound");
+            }
+            self.snapshot_mem.offset(offset) as *mut u8
+        }
+    }
 }
 
 impl Drop for Module {
