@@ -1,15 +1,15 @@
 pub mod module;
 
+use core::char;
 use core::ffi::c_void;
 use core::mem;
 use core::ptr;
-use std::ffi::CStr;
 
 use windows::core::PWSTR;
 use windows::Win32::Foundation::{CloseHandle, GetLastError, HANDLE, STILL_ACTIVE};
 use windows::Win32::System::Diagnostics::Debug::{ReadProcessMemory, WriteProcessMemory};
 use windows::Win32::System::Diagnostics::ToolHelp::{
-    CreateToolhelp32Snapshot, Module32First, Module32Next, MODULEENTRY32, TH32CS_SNAPMODULE,
+    CreateToolhelp32Snapshot, Module32FirstW, Module32NextW, MODULEENTRY32W, TH32CS_SNAPMODULE,
 };
 use windows::Win32::System::Memory::{
     VirtualAlloc, VirtualFree, MEM_COMMIT, MEM_RELEASE, MEM_RESERVE, PAGE_READWRITE,
@@ -57,13 +57,13 @@ impl Process {
     }
 
     pub fn get_module(&self, name: &str) -> Result<module::Module, String> {
-        let mut entry = MODULEENTRY32::default();
+        let mut entry = MODULEENTRY32W::default();
         unsafe {
             let snap_h = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, self.pid)
                 .or_else(|o| Err(o.message().to_string_lossy()))?;
 
-            entry.dwSize = mem::size_of::<MODULEENTRY32>() as u32;
-            if !Module32First(snap_h, &mut entry).as_bool() {
+            entry.dwSize = mem::size_of::<MODULEENTRY32W>() as u32;
+            if !Module32FirstW(snap_h, &mut entry).as_bool() {
                 CloseHandle(snap_h);
                 return Err("no module available".to_owned());
             }
@@ -72,14 +72,13 @@ impl Process {
                 if entry.th32ProcessID != self.pid {
                     continue;
                 }
-                let module_name = CStr::from_ptr(entry.szModule.as_ptr() as *const i8)
-                    .to_str()
-                    .unwrap();
+                let module_name = w_to_str(&entry.szModule);
+
                 if module_name == name {
                     break;
                 }
 
-                if !Module32Next(snap_h, &mut entry).as_bool() {
+                if !Module32NextW(snap_h, &mut entry).as_bool() {
                     return Err("module not found".to_owned());
                 }
             }
@@ -173,4 +172,11 @@ impl Drop for Process {
 
 fn str_to_w_vec(s: &str) -> Vec<u16> {
     s.encode_utf16().chain(::core::iter::once(0)).collect()
+}
+
+fn w_to_str(wide: &[u16]) -> String {
+    let i = wide.iter().cloned().take_while(|&c| c != 0);
+    char::decode_utf16(i)
+        .map(|r| r.unwrap_or(char::REPLACEMENT_CHARACTER))
+        .collect()
 }

@@ -2,12 +2,12 @@ use core::ffi::c_void;
 use std::io::Cursor;
 
 use patternscan;
-use windows::Win32::System::Diagnostics::ToolHelp::MODULEENTRY32;
+use windows::Win32::System::Diagnostics::ToolHelp::MODULEENTRY32W;
 use windows::Win32::System::Memory::{VirtualFree, MEM_RELEASE};
 
 #[derive(Debug)]
 pub struct Module {
-    pub(super) entry: MODULEENTRY32,
+    pub(super) entry: MODULEENTRY32W,
     pub(super) snapshot_mem: *mut c_void,
 }
 
@@ -28,7 +28,7 @@ impl Module {
         unsafe {
             let offset = ps_addr.offset_from(self.entry.modBaseAddr);
             if offset < 0 || offset >= self.entry.modBaseSize as isize {
-                panic!("out of bound");
+                panic!("out of bounds");
             }
             self.snapshot_mem.offset(offset) as *mut u8
         }
