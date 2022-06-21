@@ -4,21 +4,18 @@ use core::ffi::c_void;
 use core::mem;
 use core::ptr;
 use std::ffi::CStr;
-use std::ffi::OsString;
-use std::os::windows::ffi::OsStrExt;
 
-use windows::core::{PCWSTR, PWSTR};
-use windows::Win32::Foundation::{CloseHandle, GetLastError, BOOL, HANDLE, STILL_ACTIVE};
+use windows::core::PWSTR;
+use windows::Win32::Foundation::{CloseHandle, GetLastError, HANDLE, STILL_ACTIVE};
 use windows::Win32::System::Diagnostics::Debug::{ReadProcessMemory, WriteProcessMemory};
+use windows::Win32::System::Diagnostics::ToolHelp::{
+    CreateToolhelp32Snapshot, Module32First, Module32Next, MODULEENTRY32, TH32CS_SNAPMODULE,
+};
 use windows::Win32::System::Memory::{
     VirtualAlloc, VirtualFree, MEM_COMMIT, MEM_RELEASE, MEM_RESERVE, PAGE_READWRITE,
 };
 use windows::Win32::System::Threading::{
     CreateProcessW, GetExitCodeProcess, PROCESS_CREATION_FLAGS, PROCESS_INFORMATION, STARTUPINFOW,
-};
-
-use windows::Win32::System::Diagnostics::ToolHelp::{
-    CreateToolhelp32Snapshot, Module32First, Module32Next, MODULEENTRY32, TH32CS_SNAPMODULE,
 };
 
 #[derive(Debug)]
@@ -30,22 +27,19 @@ pub struct Process {
 impl Process {
     pub fn create(exec_path: &str, args: &str) -> Result<Self, String> {
         let exec_wd = &exec_path[..exec_path.rfind("\\").unwrap()];
-
-        let exec_path = str_to_w_vec(exec_path);
         let mut args = str_to_w_vec(args);
-        let exec_wd = str_to_w_vec(exec_wd);
         let ps_info = &mut PROCESS_INFORMATION::default();
 
         unsafe {
             let ok = CreateProcessW(
-                PCWSTR(exec_path.as_ptr()),
+                exec_path,
                 PWSTR(args.as_mut_ptr()),
                 ptr::null(),
                 ptr::null(),
-                BOOL::from(false),
+                false,
                 PROCESS_CREATION_FLAGS(0),
                 ptr::null(),
-                PCWSTR(exec_wd.as_ptr()),
+                exec_wd,
                 &STARTUPINFOW::default(),
                 ps_info,
             )
@@ -56,12 +50,10 @@ impl Process {
             CloseHandle(ps_info.hThread);
         };
 
-        let mut res: Self = unsafe { ::core::mem::zeroed() };
-
-        res.handle = ps_info.hProcess;
-        res.pid = ps_info.dwProcessId;
-
-        Ok(res)
+        Ok(Self {
+            handle: ps_info.hProcess,
+            pid: ps_info.dwProcessId,
+        })
     }
 
     pub fn get_module(&self, name: &str) -> Result<module::Module, String> {
@@ -180,7 +172,5 @@ impl Drop for Process {
 }
 
 fn str_to_w_vec(s: &str) -> Vec<u16> {
-    let mut v: Vec<u16> = OsString::from(s).encode_wide().collect();
-    v.push(0u16);
-    v
+    s.encode_utf16().chain(::core::iter::once(0)).collect()
 }

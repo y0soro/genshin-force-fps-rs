@@ -1,14 +1,11 @@
 use core::time::Duration;
 use std::error::Error;
-use std::ffi::OsString;
-use std::os::windows::ffi::OsStrExt;
 use std::thread::sleep;
 
 use genshin_force_fps::process::module::Module;
 use genshin_force_fps::process::Process;
 
 use pico_args::Arguments;
-use windows::core::PCWSTR;
 use windows::Win32::Storage::FileSystem::{GetFileAttributesW, INVALID_FILE_ATTRIBUTES};
 
 const HELP: &str = "\
@@ -171,9 +168,6 @@ fn scan_vsync_ptr(ps: &Process, m: &Module) -> Result<*mut u8, Box<dyn Error>> {
 
 fn path_exists(path: &str) -> bool {
     unsafe {
-        let mut v: Vec<u16> = OsString::from(path).encode_wide().collect();
-        v.push(0u16);
-        let path = PCWSTR(v.as_ptr());
         let attrs = GetFileAttributesW(path);
         attrs != INVALID_FILE_ATTRIBUTES
     }
