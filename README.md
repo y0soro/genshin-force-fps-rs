@@ -3,7 +3,7 @@
 This is almost a RIIR(rewrite it in Rust) for [genshin-fps-unlock](https://github.com/34736384/genshin-fps-unlock) but without GUI.
 
 ## Features
-- Unlock the 30/60 fps limit in game, you can force any fps as you want.
+- Unlock the 30/60 fps limit in game, you can force any fps as you want
 - CLI, i.e. no overhead
 - Cross build
 
@@ -25,6 +25,10 @@ EXAMPLE:
   genshin-force-fps.exe -f 120 -o C:\path\to\GenshinImpact.exe
 ```
 
+Create a file shortcut with arguments appended to target path or launch a terminal to specify the arguments.
+
+After launch, the tool will first start the game and sniffing the memory addresses of fps and vsync values, then monitoring those values using `ReadProcessMemory` and force those values using `WriteProcessMemory` respectively if not equal to what user specified at a 1 second intervals.
+
 ## Cross Build on Linux
 
 ### Generic
@@ -43,7 +47,7 @@ $ ls ./target/x86_64-pc-windows-gnu/*/*.exe
 
 ```bash
 $ nix build
-$ # in fully qualified path
+$ # or in fully qualified path
 $ nix build .#packages.x86_64-linux.default
 $ ls ./result/bin
 ```
