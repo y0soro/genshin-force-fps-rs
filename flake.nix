@@ -43,7 +43,7 @@
           nativeBuildInputs = with pkgs; [
             pkgsCross.mingwW64.stdenv.cc
             # Used for running tests.
-            wineWowPackages.stable
+            #wineWowPackages.stable
             # wineWowPackages is overkill, but it's built in CI for nixpkgs,
             # so it doesn't need to be built from source. It needs to provide
             # wine64 not just wine. An alternative would be this:
@@ -76,14 +76,14 @@
           # Configures the script which should be used to run tests. Since
           # this is compiled for 64-bit Windows, use wine64 to run the tests.
           # ref: https://doc.rust-lang.org/cargo/reference/config.html#targettriplerunner
-          CARGO_TARGET_X86_64_PC_WINDOWS_GNU_RUNNER = pkgs.writeScript "wine-wrapper" ''
-            # Without this, wine will error out when attempting to create the
-            # prefix in the build's homeless shelter.
-            export WINEPREFIX="$(mktemp -d)"
-            exec wine64 $@
-          '';
+          #CARGO_TARGET_X86_64_PC_WINDOWS_GNU_RUNNER = pkgs.writeScript "wine-wrapper" ''
+          #  # Without this, wine will error out when attempting to create the
+          #  # prefix in the build's homeless shelter.
+          #  export WINEPREFIX="$(mktemp -d)"
+          #  exec wine64 $@
+          #'';
 
-          doCheck = true;
+          doCheck = false;
 
           # Multi-stage builds currently fail for mingwW64.
           singleStep = true;
