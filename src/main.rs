@@ -18,6 +18,7 @@ OPTIONS:
   -n, --no-disable-vsync    Don't force disable VSync
   -f, --fps NUMBER          Force game FPS, defaults to 120
   -o, --open PATH           Path to GenshinImpact.exe/YuanShen.exe
+  -c, --cwd PATH            Path to current working dir
 ARGS:
   [GAME_ARGS]               Arguments passing to game executable
 EXAMPLE:
@@ -56,6 +57,17 @@ fn main() -> Result<(), Box<dyn Error>> {
         std::process::exit(1);
     }
 
+    let game_cwd = args.opt_value_from_str::<_, String>(["-c", "--cwd"])?;
+    let game_cwd = if let Some(s) = &game_cwd {
+        if path_exists(s) {
+            Some(s.as_str())
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
     let fps = args
         .opt_value_from_str::<_, i32>(["-f", "--fps"])?
         .unwrap_or(120);
@@ -77,7 +89,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .map(|i| i.to_str().unwrap().to_owned())
         .collect();
 
-    let ps = Process::create(&game_path, &game_args.join(" "))?;
+    let ps = Process::create(&game_path, game_cwd, &game_args.join(" "))?;
     let m = loop {
         sleep(Duration::from_millis(200));
         match ps.get_module("UnityPlayer.dll") {

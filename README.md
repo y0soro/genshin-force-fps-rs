@@ -19,6 +19,7 @@ OPTIONS:
   -n, --no-disable-vsync    Don't forcibly disable VSync
   -f, --fps NUMBER          Force game FPS, defaults to 120
   -o, --open PATH           Path to GenshinImpact.exe/YuanShen.exe
+  -c, --cwd PATH            Path to current working dir
 ARGS:
   [GAME_ARGS]               Arguments passing to game executable
 EXAMPLE:
@@ -51,3 +52,9 @@ $ # or in fully qualified path
 $ nix build .#packages.x86_64-linux.default
 $ ls ./result/bin
 ```
+
+### Troubleshooting
+
+#### Game crashes on event screens
+
+Change current working dir to somewhere other than parent dir of game executable.

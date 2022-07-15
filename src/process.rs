@@ -5,7 +5,7 @@ use core::ffi::c_void;
 use core::mem;
 use core::ptr;
 
-use windows::core::PWSTR;
+use windows::core::{PCWSTR, PWSTR};
 use windows::Win32::Foundation::{CloseHandle, GetLastError, HANDLE, STILL_ACTIVE};
 use windows::Win32::System::Diagnostics::Debug::{ReadProcessMemory, WriteProcessMemory};
 use windows::Win32::System::Diagnostics::ToolHelp::{
@@ -25,8 +25,15 @@ pub struct Process {
 }
 
 impl Process {
-    pub fn create(exec_path: &str, args: &str) -> Result<Self, String> {
-        let exec_wd = &exec_path[..exec_path.rfind("\\").unwrap()];
+    pub fn create(exec_path: &str, exec_wd: Option<&str>, args: &str) -> Result<Self, String> {
+        let exec_wd_holder: Vec<u16>;
+        let exec_wd = if let Some(s) = exec_wd {
+            exec_wd_holder = str_to_w_vec(s);
+            PCWSTR(exec_wd_holder.as_ptr())
+        } else {
+            PCWSTR::default()
+        };
+
         let mut args = str_to_w_vec(args);
         let ps_info = &mut PROCESS_INFORMATION::default();
 
