@@ -53,8 +53,8 @@ $ nix build .#packages.x86_64-linux.default
 $ ls ./result/bin
 ```
 
-### Troubleshooting
+## Troubleshooting
 
-#### Game crashes on event screens
+### Game crashes on event screens
 
 Change current working dir to somewhere other than parent dir of game executable.
