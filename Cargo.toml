@@ -1,7 +1,11 @@
 [package]
 name = "genshin-force-fps"
-version = "0.1.0"
+version = "0.1.1"
+authors = ["y0soro <y0soro@protonmail.com>"]
 edition = "2021"
+rust-version = "1.56"
+repository = "https://github.com/y0soro/genshin-force-fps-rs"
+license = "MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -32,4 +36,4 @@ features = [
 ]
 
 [build-dependencies]
-embed-manifest = "1.3.0"
+embed-manifest = "1.3.1"
