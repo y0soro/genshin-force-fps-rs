@@ -5,24 +5,29 @@ use std::thread::sleep;
 use genshin_force_fps::process::module::Module;
 use genshin_force_fps::process::Process;
 
-use pico_args::Arguments;
 use windows::Win32::Storage::FileSystem::{GetFileAttributesW, INVALID_FILE_ATTRIBUTES};
 
 const HELP: &str = "\
 Genshin Force FPS
 
 USAGE:
-  genshin-force-fps.exe [OPTIONS] [GAME_ARGS]
+  genshin-force-fps.exe [OPTIONS] -- [GAME_ARGS]
 OPTIONS:
   -h, --help                Prints help information
   -n, --no-disable-vsync    Don't force disable VSync
   -f, --fps NUMBER          Force game FPS, defaults to 120
-  -o, --open PATH           Path to GenshinImpact.exe/YuanShen.exe
-  -c, --cwd PATH            Path to current working dir
+  -c, --cwd PATH            Path to working dir that game process runs on
+  -o, --open PATH           Path to GenshinImpact.exe/YuanShen.exe, can be
+                            omitted if it's installed on default location (C:)
 ARGS:
-  [GAME_ARGS]               Arguments passing to game executable
+  [GAME_ARGS]               Unity player arguments passing to game executable,
+                            https://docs.unity3d.com/Manual/PlayerCommandLineArguments.html
 EXAMPLE:
+  # Force FPS to 120 and specify game path
   genshin-force-fps.exe -f 120 -o C:\\path\\to\\GenshinImpact.exe
+  # Force FPS to 144 and append Unity cli arguments, assuming the game was
+  # installed on default location
+  genshin-force-fps.exe -f 144 -- -screen-width 1600 -screen-height 900 -screen-fullscreen 0
 ";
 
 const DEFAULT_GAME_PATHS: &[&'static str] = &[
@@ -30,66 +35,100 @@ const DEFAULT_GAME_PATHS: &[&'static str] = &[
     "C:\\Program Files\\Genshin Impact\\Genshin Impact Game\\YuanShen.exe",
 ];
 
-fn main() -> Result<(), Box<dyn Error>> {
-    let mut args = Arguments::from_env();
+struct Args {
+    game_path: Option<String>,
+    game_cwd: Option<String>,
+    fps: i32,
+    disable_vsync: bool,
+    game_args: Vec<String>,
+}
 
-    if args.contains(["-h", "--help"]) {
-        print!("{}", HELP);
-        std::process::exit(0);
+fn parse_env_args() -> Result<Args, lexopt::Error> {
+    use lexopt::prelude::*;
+
+    let mut game_path: Option<String> = None;
+    let mut game_cwd: Option<String> = None;
+    let mut fps: i32 = 120;
+    let mut disable_vsync: bool = true;
+    let mut game_args: Vec<String> = vec![];
+
+    let mut parser = lexopt::Parser::from_env();
+    while let Some(arg) = parser.next()? {
+        match arg {
+            Short('h') | Long("help") => {
+                println!("{}", HELP);
+                std::process::exit(0);
+            }
+            Short('n') | Long("no-disable-vsync") => {
+                disable_vsync = false;
+            }
+            Short('f') | Long("fps") => {
+                fps = parser.value()?.parse()?;
+                fps = ::core::cmp::max(1, fps);
+            }
+            Short('c') | Long("cwd") => {
+                game_cwd = Some(parser.value()?.parse()?);
+            }
+            Short('o') | Long("open") => {
+                game_path = Some(parser.value()?.parse()?);
+            }
+            Value(val) => {
+                game_args.push(val.into_string()?);
+            }
+            _ => return Err(arg.unexpected()),
+        }
     }
 
-    let game_path = args.opt_value_from_str::<_, String>(["-o", "--open"])?;
+    Ok(Args {
+        game_path,
+        game_cwd,
+        fps,
+        disable_vsync,
+        game_args,
+    })
+}
+
+fn main() -> Result<(), Box<dyn Error>> {
+    let Args {
+        game_path,
+        game_cwd,
+        mut game_args,
+        fps,
+        disable_vsync,
+    } = parse_env_args()?;
+
     let game_path = match game_path {
-        Some(s) => s,
-        None => {
-            let res = DEFAULT_GAME_PATHS.iter().find(|i| path_exists(i));
-            if let Some(&s) = res {
-                s.to_owned()
-            } else {
-                println!("{}", HELP);
-                println!("Please specify the game path with option -o");
+        Some(s) => {
+            if !path_exists(&s) {
+                eprintln!("{}", HELP);
+                eprintln!("Game path {} doesn't exists!", s);
                 std::process::exit(1);
             }
+            s
         }
-    };
-    if !path_exists(&game_path) {
-        println!("Path {} does not exist", game_path);
-        std::process::exit(1);
-    }
-
-    let game_cwd = args.opt_value_from_str::<_, String>(["-c", "--cwd"])?;
-    let game_cwd = if let Some(s) = &game_cwd {
-        if path_exists(s) {
-            Some(s.as_str())
-        } else {
-            None
-        }
-    } else {
-        None
-    };
-
-    let fps = args
-        .opt_value_from_str::<_, i32>(["-f", "--fps"])?
-        .unwrap_or(120);
-    let fps = ::core::cmp::max(1, fps);
-
-    let disable_vsync = args
-        .opt_free_from_fn(|s| {
-            if s == "-n" || s == "--no-disable-vsync" {
-                Ok(())
-            } else {
-                Err("".to_owned())
+        None => loop {
+            if let Some(possible_path) = game_args.first() {
+                if path_exists(&possible_path) {
+                    break game_args.remove(0);
+                }
             }
-        })?
-        .is_none();
-
-    let game_args: Vec<String> = args
-        .finish()
-        .into_iter()
-        .map(|i| i.to_str().unwrap().to_owned())
-        .collect();
-
-    let ps = Process::create(&game_path, game_cwd, &game_args.join(" "))?;
+            let res = DEFAULT_GAME_PATHS.iter().find(|i| path_exists(i));
+            if let Some(&s) = res {
+                break s.to_owned();
+            } else {
+                eprintln!("{}", HELP);
+                eprintln!("Please specify the game path with option -o");
+                std::process::exit(1);
+            }
+        },
+    };
+    let game_args = game_args.join(" ");
+    if game_args.len() > 0 {
+        eprintln!("launching {} {}", game_path, game_args);
+    } else {
+        eprintln!("launching {}", game_path);
+    }
+    let ps = Process::create(&game_path, game_cwd.as_deref(), &game_args)?;
     let m = loop {
         sleep(Duration::from_millis(200));
         match ps.get_module("UnityPlayer.dll") {
