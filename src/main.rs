@@ -2,9 +2,11 @@ use core::time::Duration;
 use std::error::Error;
 use std::thread::sleep;
 
+use genshin_force_fps::logger::TinyLogger;
 use genshin_force_fps::process::module::Module;
 use genshin_force_fps::process::Process;
 
+use log::{error, info};
 use windows::Win32::Storage::FileSystem::{GetFileAttributesW, INVALID_FILE_ATTRIBUTES};
 
 const HELP: &str = "\
@@ -89,6 +91,7 @@ fn parse_env_args() -> Result<Args, lexopt::Error> {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
+    TinyLogger.init()?;
     let Args {
         game_path,
         game_cwd,
@@ -124,9 +127,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
     let game_args = game_args.join(" ");
     if game_args.len() > 0 {
-        eprintln!("launching {} {}", game_path, game_args);
+        info!("launching {} {}", game_path, game_args);
     } else {
-        eprintln!("launching {}", game_path);
+        info!("launching {}", game_path);
     }
     let ps = Process::create(&game_path, game_cwd.as_deref(), &game_args)?;
     let m = loop {
@@ -134,7 +137,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         match ps.get_module("UnityPlayer.dll") {
             Ok(m) => break m,
             Err(s) => {
-                eprintln!("{}", s);
+                error!("{}", s);
             }
         }
         if !ps.is_active() {
@@ -145,7 +148,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let p_fps = scan_fps_ptr(&ps, &m)?;
     let p_vsync = scan_vsync_ptr(&ps, &m)?;
 
-    eprintln!("scan success: p_fps:{:?}, p_vsync:{:?}", p_fps, p_vsync);
+    info!("scan success: p_fps:{:?}, p_vsync:{:?}", p_fps, p_vsync);
     drop(m);
 
     loop {
@@ -159,9 +162,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             if v != fps && v >= 0 {
                 let res = ps.write::<i32>(p_fps, &fps);
                 if res.is_err() {
-                    eprintln!("failed to write FPS");
+                    error!("failed to write FPS");
                 } else {
-                    eprintln!("Force FPS: {} -> {}", v, fps);
+                    info!("force FPS: {} -> {}", v, fps);
                 }
             }
         }
@@ -172,9 +175,9 @@ fn main() -> Result<(), Box<dyn Error>> {
                 if v != 0 {
                     let res = ps.write::<i32>(p_vsync, &0);
                     if res.is_err() {
-                        eprintln!("failed to write VSync");
+                        error!("failed to write VSync");
                     } else {
-                        eprintln!("VSync forcibly disabled");
+                        info!("VSync forcibly disabled");
                     }
                 }
             }
