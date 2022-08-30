@@ -16,7 +16,7 @@ checksum = "40ff574b0b0a794f8995383bb83f21f8f99214422cae791cb48d66da524b00f7"
 
 [[package]]
 name = "genshin-force-fps"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "embed-manifest",
  "lexopt",
