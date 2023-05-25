@@ -132,7 +132,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         info!("launching {}", game_path);
     }
     let ps = Process::create(&game_path, game_cwd.as_deref(), &game_args)?;
-    let m = loop {
+    let m_up = loop {
         sleep(Duration::from_millis(200));
         match ps.get_module("UnityPlayer.dll") {
             Ok(m) => break m,
@@ -145,11 +145,25 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     };
 
-    let p_fps = scan_fps_ptr(&ps, &m)?;
-    let p_vsync = scan_vsync_ptr(&ps, &m)?;
+    sleep(Duration::from_millis(5000));
+    let m_ua = loop {
+        sleep(Duration::from_millis(200));
+        match ps.get_module("UserAssembly.dll") {
+            Ok(m) => break m,
+            Err(s) => {
+                error!("{}", s);
+            }
+        }
+        if !ps.is_active() {
+            return Ok(());
+        }
+    };
+
+    let p_fps = scan_fps_ptr(&ps, &m_up, &m_ua)?;
+    let p_vsync = scan_vsync_ptr(&ps, &m_up)?;
 
     info!("scan success: p_fps:{:?}, p_vsync:{:?}", p_fps, p_vsync);
-    drop(m);
+    drop(m_up);
 
     loop {
         if !ps.is_active() {
@@ -185,28 +199,75 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 }
 
-fn scan_fps_ptr(_ps: &Process, m: &Module) -> Result<*mut u8, Box<dyn Error>> {
-    let p_fps_anchor = m
-        .pattern_scan("7F 0F 8B 05 ? ? ? ?")
-        .ok_or("FPS anchor pattern not found")?;
+#[inline]
+unsafe fn extract_address(
+    m: &Module,
+    p_inst: *mut u8,
+    address_offset: usize,
+    inst_len: usize,
+) -> *mut u8 {
+    let rel = *(m.snapshot_addr(p_inst.add(address_offset)) as *mut i32) as isize;
+    p_inst.offset(rel + inst_len as isize)
+}
+
+fn scan_fps_ptr(ps: &Process, m_up: &Module, m_ua: &Module) -> Result<*mut u8, Box<dyn Error>> {
+    let p_fps_anchor = m_ua
+        .pattern_scan("E8 ? ? ? ? 85 C0 7E 07 E8 ? ? ? ? EB 05")
+        .ok_or("FPS anchor pattern not found, try updating this tools")?;
     unsafe {
-        let rel = *(m.snapshot_addr(p_fps_anchor.add(4)) as *mut i32) as isize;
-        Ok(p_fps_anchor.offset(rel + 8))
+        let p_func_indirect = extract_address(m_ua, p_fps_anchor, 1, 5);
+
+        let pp_func_fps = extract_address(m_ua, p_func_indirect, 3, 7);
+
+        let mut p_func_fps = loop {
+            let p = ps.read::<u64>(pp_func_fps)?;
+            if p == 0 {
+                sleep(Duration::from_millis(200));
+                continue;
+            }
+            break (p as *mut u8);
+        };
+
+        loop {
+            let inst = *m_up.snapshot_addr(p_func_fps);
+            match inst {
+                // CALL
+                0xe8 | 0xe9 => {
+                    p_func_fps = extract_address(m_up, p_func_fps, 1, 5);
+                    continue;
+                }
+                _ => break,
+            }
+        }
+
+        let p_fps = extract_address(m_up, p_func_fps, 2, 6);
+        Ok(p_fps)
     }
 }
 
-fn scan_vsync_ptr(ps: &Process, m: &Module) -> Result<*mut u8, Box<dyn Error>> {
-    let p_vsync_anchor = m
-        .pattern_scan("E8 ? ? ? ? 8B E8 49 8B 1E")
-        .ok_or("VSync anchor pattern not found")?;
+/**
+ * 3.6 or before
+ */
+fn _scan_fps_ptr_legacy(m_up: &Module) -> Result<*mut u8, Box<dyn Error>> {
+    let p_fps_anchor = m_up
+        .pattern_scan("7F 0F 8B 05 ? ? ? ?")
+        .ok_or("FPS anchor pattern not found")?;
     unsafe {
-        let rel = *(m.snapshot_addr(p_vsync_anchor.add(1)) as *mut i32) as isize;
-        let p_func_read_vsync = p_vsync_anchor.offset(rel + 5);
+        let p_fps = extract_address(m_up, p_fps_anchor, 4, 8);
+        Ok(p_fps)
+    }
+}
 
-        let rel = *(m.snapshot_addr(p_func_read_vsync.add(3)) as *mut i32) as isize;
-        let pp_vsync_base = p_func_read_vsync.offset(rel + 7);
+fn scan_vsync_ptr(ps: &Process, m_up: &Module) -> Result<*mut u8, Box<dyn Error>> {
+    let p_vsync_anchor = m_up
+        .pattern_scan("E8 ? ? ? ? 8B E8 49 8B 1E")
+        .ok_or("VSync anchor pattern not found, try updating this tools")?;
+    unsafe {
+        let p_func_read_vsync = extract_address(m_up, p_vsync_anchor, 1, 5);
 
-        let vsync_offset = *(m.snapshot_addr(p_func_read_vsync.add(9)) as *mut i32) as isize;
+        let pp_vsync_base = extract_address(m_up, p_func_read_vsync, 3, 7);
+
+        let vsync_offset = *(m_up.snapshot_addr(p_func_read_vsync.add(9)) as *mut i32) as isize;
 
         let p_vsync_base = loop {
             let p = ps.read::<u64>(pp_vsync_base)?;

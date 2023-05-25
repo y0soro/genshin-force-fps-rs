@@ -28,7 +28,12 @@ impl Module {
         unsafe {
             let offset = ps_addr.offset_from(self.entry.modBaseAddr);
             if offset < 0 || offset >= self.entry.modBaseSize as isize {
-                panic!("out of bounds");
+                panic!(
+                    "{:?} out of bounds, [{:?}, {:?}]",
+                    ps_addr,
+                    self.entry.modBaseAddr,
+                    self.entry.modBaseAddr.offset(self.entry.modBaseSize as _)
+                );
             }
             self.snapshot_mem.offset(offset) as *mut u8
         }
