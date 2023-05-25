@@ -16,7 +16,7 @@ USAGE:
   genshin-force-fps.exe [OPTIONS] -- [GAME_ARGS]
 OPTIONS:
   -h, --help                Prints help information
-  -n, --no-disable-vsync    Don't force disable VSync
+  -n, --no-disable-vsync    Don't forcibly disable VSync
   -f, --fps NUMBER          Force game FPS, defaults to 120
   -c, --cwd PATH            Path to working dir that game process runs on
   -o, --open PATH           Path to GenshinImpact.exe/YuanShen.exe, can be
@@ -34,7 +34,7 @@ EXAMPLE:
 
 The option `-o/--open` can be omitted if the game was installed on "C:\Program Files\Genshin Impact\Genshin Impact Game\".
 
-After launch, the tool will first start the game and sniffing the memory addresses of fps and vsync values, then monitor those values using `ReadProcessMemory` and force them using `WriteProcessMemory` if not equal to what user specified respectively at 1 second interval.
+After launching, the tool will first start the game and sniffing the memory addresses of fps and vsync values, then monitor those values using `ReadProcessMemory` and force them using `WriteProcessMemory` if not equal to what user specified respectively at 1 second interval.
 
 ### Windows
 
@@ -70,12 +70,12 @@ $ ls ./target/x86_64-pc-windows-gnu/*/*.exe
 ```bash
 $ nix build
 $ # or in fully qualified path
-$ nix build .#packages.x86_64-linux.default
+$ nix build ".#packages.x86_64-linux.default"
 $ ls ./result/bin
 ```
 
 ## Troubleshooting
 
-### Game crashes on event screens
+### Game crashes on event screen
 
 Change current working dir to somewhere other than parent dir of game executable.

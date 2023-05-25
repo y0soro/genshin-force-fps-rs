@@ -16,7 +16,7 @@ USAGE:
   genshin-force-fps.exe [OPTIONS] -- [GAME_ARGS]
 OPTIONS:
   -h, --help                Prints help information
-  -n, --no-disable-vsync    Don't force disable VSync
+  -n, --no-disable-vsync    Don't forcibly disable VSync
   -f, --fps NUMBER          Force game FPS, defaults to 120
   -c, --cwd PATH            Path to working dir that game process runs on
   -o, --open PATH           Path to GenshinImpact.exe/YuanShen.exe, can be
@@ -111,7 +111,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
         None => loop {
             if let Some(possible_path) = game_args.first() {
-                if path_exists(&possible_path) {
+                if path_exists(possible_path) {
                     break game_args.remove(0);
                 }
             }
