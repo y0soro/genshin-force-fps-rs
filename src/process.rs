@@ -6,13 +6,15 @@ use core::mem;
 use core::ptr;
 
 use windows::core::{PCWSTR, PWSTR};
-use windows::Win32::Foundation::{CloseHandle, GetLastError, HANDLE, STILL_ACTIVE};
-use windows::Win32::System::Diagnostics::Debug::{ReadProcessMemory, WriteProcessMemory};
-use windows::Win32::System::Diagnostics::ToolHelp::{
-    CreateToolhelp32Snapshot, Module32FirstW, Module32NextW, MODULEENTRY32W, TH32CS_SNAPMODULE,
+use windows::Win32::Foundation::{
+    CloseHandle, GetLastError, HANDLE, HINSTANCE, MAX_PATH, STILL_ACTIVE,
 };
+use windows::Win32::System::Diagnostics::Debug::{ReadProcessMemory, WriteProcessMemory};
 use windows::Win32::System::Memory::{
     VirtualAlloc, VirtualFree, MEM_COMMIT, MEM_RELEASE, MEM_RESERVE, PAGE_READWRITE,
+};
+use windows::Win32::System::ProcessStatus::{
+    K32EnumProcessModules, K32GetModuleBaseNameW, K32GetModuleInformation, MODULEINFO,
 };
 use windows::Win32::System::Threading::{
     CreateProcessW, GetExitCodeProcess, PROCESS_CREATION_FLAGS, PROCESS_INFORMATION, STARTUPINFOW,
@@ -21,7 +23,7 @@ use windows::Win32::System::Threading::{
 #[derive(Debug)]
 pub struct Process {
     handle: HANDLE,
-    pid: u32,
+    _pid: u32,
 }
 
 impl Process {
@@ -59,40 +61,63 @@ impl Process {
 
         Ok(Self {
             handle: ps_info.hProcess,
-            pid: ps_info.dwProcessId,
+            _pid: ps_info.dwProcessId,
         })
     }
 
+    unsafe fn enum_modules(&self) -> Result<Vec<HINSTANCE>, String> {
+        let mut lpcbneeded: u32 = 1024;
+        let mut lphmodule = vec![];
+
+        while lphmodule.len() < lpcbneeded as _ {
+            lphmodule.resize(lpcbneeded as _, HINSTANCE::default());
+
+            let ok = K32EnumProcessModules(
+                self.handle,
+                lphmodule.as_mut_ptr(),
+                (lphmodule.len() * mem::size_of::<HINSTANCE>()) as u32,
+                &mut lpcbneeded,
+            )
+            .as_bool();
+            if !ok {
+                return Err("failed to enum modules".to_owned());
+            }
+        }
+        lphmodule.truncate(lpcbneeded as _);
+        return Ok(lphmodule);
+    }
+
     pub fn get_module(&self, name: &str) -> Result<module::Module, String> {
-        let mut entry = MODULEENTRY32W::default();
         unsafe {
-            let snap_h = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, self.pid)
-                .or_else(|o| Err(o.message().to_string_lossy()))?;
+            let hmodule = 'outer: {
+                for hmodule in self.enum_modules()? {
+                    let mut module_name: [u16; MAX_PATH as usize] = [0; MAX_PATH as usize];
+                    K32GetModuleBaseNameW(self.handle, hmodule, &mut module_name);
+                    let module_name = w_to_str(&module_name);
+                    if module_name == name {
+                        break 'outer hmodule;
+                    }
+                }
+                return Err("module not found".to_owned());
+            };
 
-            entry.dwSize = mem::size_of::<MODULEENTRY32W>() as u32;
-            if !Module32FirstW(snap_h, &mut entry).as_bool() {
-                CloseHandle(snap_h);
-                return Err("no module available".to_owned());
+            let mut info = MODULEINFO::default();
+            let ok = K32GetModuleInformation(
+                self.handle,
+                hmodule,
+                &mut info,
+                mem::size_of_val(&info) as _,
+            )
+            .as_bool();
+            if !ok {
+                return Err("failed to get module info".to_owned());
             }
-
-            loop {
-                if entry.th32ProcessID != self.pid {
-                    continue;
-                }
-                let module_name = w_to_str(&entry.szModule);
-
-                if module_name == name {
-                    break;
-                }
-
-                if !Module32NextW(snap_h, &mut entry).as_bool() {
-                    return Err("module not found".to_owned());
-                }
-            }
+            let base_addr = info.lpBaseOfDll;
+            let base_size = info.SizeOfImage as usize;
 
             let snapshot_mem = VirtualAlloc(
                 ptr::null(),
-                entry.modBaseSize as usize,
+                base_size,
                 MEM_COMMIT | MEM_RESERVE,
                 PAGE_READWRITE,
             );
@@ -102,20 +127,20 @@ impl Process {
 
             let ok = ReadProcessMemory(
                 self.handle,
-                entry.modBaseAddr as *const c_void,
+                base_addr,
                 snapshot_mem,
-                entry.modBaseSize as usize,
+                base_size,
                 ptr::null_mut(),
             )
             .as_bool();
-
             if !ok {
                 VirtualFree(snapshot_mem, 0, MEM_RELEASE);
                 return Err("failed to read module memory".to_owned());
             }
 
             Ok(module::Module {
-                entry,
+                base_addr,
+                base_size,
                 snapshot_mem,
             })
         }

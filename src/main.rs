@@ -206,7 +206,7 @@ unsafe fn extract_address(
     address_offset: usize,
     inst_len: usize,
 ) -> *mut u8 {
-    let rel = *(m.snapshot_addr(p_inst.add(address_offset)) as *mut i32) as isize;
+    let rel = (m.snapshot_addr(p_inst.add(address_offset)) as *mut i32).read_unaligned() as isize;
     p_inst.offset(rel + inst_len as isize)
 }
 
@@ -267,7 +267,8 @@ fn scan_vsync_ptr(ps: &Process, m_up: &Module) -> Result<*mut u8, Box<dyn Error>
 
         let pp_vsync_base = extract_address(m_up, p_func_read_vsync, 3, 7);
 
-        let vsync_offset = *(m_up.snapshot_addr(p_func_read_vsync.add(9)) as *mut i32) as isize;
+        let vsync_offset =
+            (m_up.snapshot_addr(p_func_read_vsync.add(9)) as *mut i32).read_unaligned() as isize;
 
         let p_vsync_base = loop {
             let p = ps.read::<u64>(pp_vsync_base)?;

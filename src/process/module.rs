@@ -2,12 +2,12 @@ use core::ffi::c_void;
 use std::io::Cursor;
 
 use patternscan;
-use windows::Win32::System::Diagnostics::ToolHelp::MODULEENTRY32W;
 use windows::Win32::System::Memory::{VirtualFree, MEM_RELEASE};
 
 #[derive(Debug)]
 pub struct Module {
-    pub(super) entry: MODULEENTRY32W,
+    pub(super) base_addr: *mut c_void,
+    pub(super) base_size: usize,
     pub(super) snapshot_mem: *mut c_void,
 }
 
@@ -16,23 +16,23 @@ impl Module {
         unsafe {
             let mem_slice = ::core::slice::from_raw_parts_mut(
                 self.snapshot_mem as *mut u8,
-                self.entry.modBaseSize as usize,
+                self.base_size as usize,
             );
 
             let offset = patternscan::scan_first_match(Cursor::new(mem_slice), pattern).ok()??;
-            Some(self.entry.modBaseAddr.add(offset))
+            Some(self.base_addr.add(offset) as _)
         }
     }
 
     pub fn snapshot_addr(&self, ps_addr: *mut u8) -> *mut u8 {
         unsafe {
-            let offset = ps_addr.offset_from(self.entry.modBaseAddr);
-            if offset < 0 || offset >= self.entry.modBaseSize as isize {
+            let offset = ps_addr.offset_from(self.base_addr as _);
+            if offset < 0 || offset >= self.base_size as isize {
                 panic!(
                     "{:?} out of bounds, [{:?}, {:?}]",
                     ps_addr,
-                    self.entry.modBaseAddr,
-                    self.entry.modBaseAddr.offset(self.entry.modBaseSize as _)
+                    self.base_addr,
+                    self.base_addr.offset(self.base_size as _)
                 );
             }
             self.snapshot_mem.offset(offset) as *mut u8
