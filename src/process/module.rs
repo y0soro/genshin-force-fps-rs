@@ -14,16 +14,15 @@ pub struct Module {
 impl Module {
     pub fn pattern_scan(&self, pattern: &str) -> Option<*mut u8> {
         unsafe {
-            let mem_slice = ::core::slice::from_raw_parts_mut(
-                self.snapshot_mem as *mut u8,
-                self.base_size as usize,
-            );
+            let mem_slice =
+                ::core::slice::from_raw_parts_mut(self.snapshot_mem as *mut u8, self.base_size);
 
             let offset = patternscan::scan_first_match(Cursor::new(mem_slice), pattern).ok()??;
             Some(self.base_addr.add(offset) as _)
         }
     }
 
+    #[allow(clippy::not_unsafe_ptr_arg_deref)]
     pub fn snapshot_addr(&self, ps_addr: *mut u8) -> *mut u8 {
         unsafe {
             let offset = ps_addr.offset_from(self.base_addr as _);
@@ -32,7 +31,7 @@ impl Module {
                     "{:?} out of bounds, [{:?}, {:?}]",
                     ps_addr,
                     self.base_addr,
-                    self.base_addr.offset(self.base_size as _)
+                    self.base_addr.add(self.base_size)
                 );
             }
             self.snapshot_mem.offset(offset) as *mut u8

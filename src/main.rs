@@ -5,9 +5,14 @@ use std::thread::sleep;
 use genshin_force_fps::logger::TinyLogger;
 use genshin_force_fps::process::module::Module;
 use genshin_force_fps::process::Process;
+use genshin_force_fps::utils::*;
 
 use log::{error, info};
+use windows::core::PCWSTR;
 use windows::Win32::Storage::FileSystem::{GetFileAttributesW, INVALID_FILE_ATTRIBUTES};
+use windows::Win32::System::Registry::{
+    RegOpenCurrentUser, RegSetKeyValueW, HKEY, KEY_WRITE, REG_DWORD,
+};
 
 const HELP: &str = "\
 Genshin Force FPS
@@ -16,6 +21,7 @@ USAGE:
   genshin-force-fps.exe [OPTIONS] -- [GAME_ARGS]
 OPTIONS:
   -h, --help                Prints help information
+      --hdr                 Force enable HDR support
   -n, --no-disable-vsync    Don't forcibly disable VSync
   -f, --fps NUMBER          Force game FPS, defaults to 120
   -c, --cwd PATH            Path to working dir that game process runs on
@@ -32,7 +38,7 @@ EXAMPLE:
   genshin-force-fps.exe -f 144 -- -screen-width 1600 -screen-height 900 -screen-fullscreen 0
 ";
 
-const DEFAULT_GAME_PATHS: &[&'static str] = &[
+const DEFAULT_GAME_PATHS: &[&str] = &[
     "C:\\Program Files\\Genshin Impact\\Genshin Impact Game\\GenshinImpact.exe",
     "C:\\Program Files\\Genshin Impact\\Genshin Impact Game\\YuanShen.exe",
 ];
@@ -40,6 +46,7 @@ const DEFAULT_GAME_PATHS: &[&'static str] = &[
 struct Args {
     game_path: Option<String>,
     game_cwd: Option<String>,
+    enable_hdr: bool,
     fps: i32,
     disable_vsync: bool,
     game_args: Vec<String>,
@@ -50,8 +57,9 @@ fn parse_env_args() -> Result<Args, lexopt::Error> {
 
     let mut game_path: Option<String> = None;
     let mut game_cwd: Option<String> = None;
+    let mut enable_hdr = false;
     let mut fps: i32 = 120;
-    let mut disable_vsync: bool = true;
+    let mut disable_vsync = true;
     let mut game_args: Vec<String> = vec![];
 
     let mut parser = lexopt::Parser::from_env();
@@ -61,6 +69,7 @@ fn parse_env_args() -> Result<Args, lexopt::Error> {
                 println!("{}", HELP);
                 std::process::exit(0);
             }
+            Long("hdr") => enable_hdr = true,
             Short('n') | Long("no-disable-vsync") => {
                 disable_vsync = false;
             }
@@ -84,6 +93,7 @@ fn parse_env_args() -> Result<Args, lexopt::Error> {
     Ok(Args {
         game_path,
         game_cwd,
+        enable_hdr,
         fps,
         disable_vsync,
         game_args,
@@ -95,6 +105,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let Args {
         game_path,
         game_cwd,
+        enable_hdr,
         mut game_args,
         fps,
         disable_vsync,
@@ -125,8 +136,14 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
         },
     };
+
+    if enable_hdr {
+        set_hdr_reg()?;
+        info!("set HDR registry value")
+    }
+
     let game_args = game_args.join(" ");
-    if game_args.len() > 0 {
+    if !game_args.is_empty() {
         info!("launching {} {}", game_path, game_args);
     } else {
         info!("launching {}", game_path);
@@ -197,6 +214,31 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
         }
     }
+}
+
+fn set_hdr_reg() -> windows::core::Result<()> {
+    unsafe {
+        let mut h_key = HKEY::default();
+        RegOpenCurrentUser(KEY_WRITE.0, &mut h_key).ok()?;
+
+        let sub_keys = [r"SOFTWARE\miHoYo\原神", r"SOFTWARE\miHoYo\Genshin Impact"];
+
+        for sub_key in sub_keys {
+            let sub_key = str_to_w_vec(sub_key);
+            let value_name = str_to_w_vec("WINDOWS_HDR_ON_h3132281285");
+            let value = 1i32;
+            RegSetKeyValueW(
+                h_key,
+                PCWSTR(sub_key.as_ptr()),
+                PCWSTR(value_name.as_ptr()),
+                REG_DWORD.0,
+                &value as *const _ as _,
+                core::mem::size_of_val(&value) as _,
+            )
+            .ok()?;
+        }
+    }
+    Ok(())
 }
 
 #[inline]

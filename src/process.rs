@@ -1,6 +1,5 @@
 pub mod module;
 
-use core::char;
 use core::ffi::c_void;
 use core::mem;
 use core::ptr;
@@ -19,6 +18,8 @@ use windows::Win32::System::ProcessStatus::{
 use windows::Win32::System::Threading::{
     CreateProcessW, GetExitCodeProcess, PROCESS_CREATION_FLAGS, PROCESS_INFORMATION, STARTUPINFOW,
 };
+
+use crate::utils::*;
 
 #[derive(Debug)]
 pub struct Process {
@@ -84,7 +85,7 @@ impl Process {
             }
         }
         lphmodule.truncate(lpcbneeded as _);
-        return Ok(lphmodule);
+        Ok(lphmodule)
     }
 
     pub fn get_module(&self, name: &str) -> Result<module::Module, String> {
@@ -200,15 +201,4 @@ impl Drop for Process {
             CloseHandle(self.handle);
         }
     }
-}
-
-fn str_to_w_vec(s: &str) -> Vec<u16> {
-    s.encode_utf16().chain(::core::iter::once(0)).collect()
-}
-
-fn w_to_str(wide: &[u16]) -> String {
-    let i = wide.iter().cloned().take_while(|&c| c != 0);
-    char::decode_utf16(i)
-        .map(|r| r.unwrap_or(char::REPLACEMENT_CHARACTER))
-        .collect()
 }
