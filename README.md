@@ -16,6 +16,7 @@ USAGE:
   genshin-force-fps.exe [OPTIONS] -- [GAME_ARGS]
 OPTIONS:
   -h, --help                Prints help information
+      --hdr                 Force enable HDR support
   -n, --no-disable-vsync    Don't forcibly disable VSync
   -f, --fps NUMBER          Force game FPS, defaults to 120
   -c, --cwd PATH            Path to working dir that game process runs on
@@ -47,7 +48,7 @@ If the game was installed on default location and you are fine with default 120 
 Change game executable path to path of genshin-force-fps.exe, and specifying the game path with option `-o/--open` instead. For example,
 
 - Executable: `/path/to/genshin-force-fps.exe`
-- Arguments: `-f144 -o "C:\\Program Files\\Genshin Impact\\Genshin Impact Game\\GenshinImpact.exe"`
+- Arguments: `-f 144 -o 'C:\\Program Files\Genshin Impact\Genshin Impact Game\GenshinImpact.exe'`
 
 The game path has to be Windows path in current WINEPREFIX environment instead of Unix path on host machine since this tool is still a Windows program.
 
