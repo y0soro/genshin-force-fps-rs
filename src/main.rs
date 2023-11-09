@@ -7,7 +7,7 @@ use genshin_force_fps::process::module::Module;
 use genshin_force_fps::process::Process;
 use genshin_force_fps::utils::*;
 
-use log::{error, info};
+use log::{error, info, warn};
 use windows::core::PCWSTR;
 use windows::Win32::Storage::FileSystem::{GetFileAttributesW, INVALID_FILE_ATTRIBUTES};
 use windows::Win32::System::Registry::{
@@ -177,8 +177,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
 
     let p_fps = scan_fps_ptr(&ps, &m_up, &m_ua)?;
-    let p_vsync = scan_vsync_ptr(&ps, &m_up)?;
-
+    let p_vsync = disable_vsync.then(|| scan_vsync_ptr(&ps, &m_up)
+    .map_or_else(|c| {warn!("{c}"); None}, Some)).flatten();
     info!("scan success: p_fps:{:?}, p_vsync:{:?}", p_fps, p_vsync);
     drop(m_up);
 
@@ -200,7 +200,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
         }
 
-        if disable_vsync {
+        if let Some(p_vsync) = p_vsync {
             let res = ps.read::<i32>(p_vsync);
             if let Ok(v) = res {
                 if v != 0 {
