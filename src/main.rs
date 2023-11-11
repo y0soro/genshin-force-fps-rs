@@ -176,11 +176,27 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     };
 
-    let p_fps = scan_fps_ptr(&ps, &m_up, &m_ua)?;
-    let p_vsync = scan_vsync_ptr(&ps, &m_up)?;
+    let p_fps = scan_fps_ptr(&ps, &m_up, &m_ua)
+        .map_err(|e| error!("{}", e))
+        .ok();
+    let p_vsync = if disable_vsync {
+        scan_vsync_ptr(&ps, &m_up).map_err(|e| error!("{}", e)).ok()
+    } else {
+        None
+    };
 
-    info!("scan success: p_fps:{:?}, p_vsync:{:?}", p_fps, p_vsync);
+    info!(
+        "scan result: p_fps:{}, p_vsync:{}",
+        p_fps.map_or("failure".to_string(), |v| format!("{:?}", v)),
+        p_vsync.map_or("failure".to_string(), |v| format!("{:?}", v)),
+    );
     drop(m_up);
+
+    let Some(p_fps) = p_fps else {
+        info!("failed to scan pointer of fps value, exit in 10s");
+        sleep(Duration::from_secs(10));
+        std::process::exit(1);
+    };
 
     loop {
         if !ps.is_active() {
@@ -200,7 +216,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
         }
 
-        if disable_vsync {
+        if let Some(p_vsync) = p_vsync {
             let res = ps.read::<i32>(p_vsync);
             if let Ok(v) = res {
                 if v != 0 {

@@ -35,7 +35,7 @@ EXAMPLE:
 
 The option `-o/--open` can be omitted if the game was installed on "C:\Program Files\Genshin Impact\Genshin Impact Game\".
 
-After launching, the tool will first start the game and sniffing the memory addresses of fps and vsync values, then monitor those values using `ReadProcessMemory` and force them using `WriteProcessMemory` if not equal to what user specified respectively at 1 second interval.
+After launching, the tool will first start the game and sniffing the memory addresses of fps and vsync values, then monitor those values using `ReadProcessMemory` and force them using `WriteProcessMemory` if not equal to what user specified at 1 second interval respectively .
 
 ### Windows
 
