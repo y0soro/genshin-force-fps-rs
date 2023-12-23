@@ -17,7 +17,6 @@ USAGE:
 OPTIONS:
   -h, --help                Prints help information
       --hdr                 Force enable HDR support
-  -n, --no-disable-vsync    Don't forcibly disable VSync
   -f, --fps NUMBER          Force game FPS, defaults to 120
   -c, --cwd PATH            Path to working dir that game process runs on
   -o, --open PATH           Path to GenshinImpact.exe/YuanShen.exe, can be
@@ -35,7 +34,7 @@ EXAMPLE:
 
 The option `-o/--open` can be omitted if the game was installed on "C:\Program Files\Genshin Impact\Genshin Impact Game\".
 
-After launching, the tool will first start the game and sniffing the memory addresses of fps and vsync values, then monitor those values using `ReadProcessMemory` and force them using `WriteProcessMemory` if not equal to what user specified at 1 second interval respectively .
+After launching, the tool will first start the game and sniffing the memory addresses of fps value, then monitor those values using `ReadProcessMemory` and force them using `WriteProcessMemory` if not equal to what user specified at 1 second interval respectively .
 
 ### Windows
 

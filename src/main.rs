@@ -7,7 +7,7 @@ use genshin_force_fps::process::module::Module;
 use genshin_force_fps::process::Process;
 use genshin_force_fps::utils::*;
 
-use log::{error, info};
+use log::{error, info, warn};
 use windows::core::PCWSTR;
 use windows::Win32::Storage::FileSystem::{GetFileAttributesW, INVALID_FILE_ATTRIBUTES};
 use windows::Win32::System::Registry::{
@@ -22,7 +22,6 @@ USAGE:
 OPTIONS:
   -h, --help                Prints help information
       --hdr                 Force enable HDR support
-  -n, --no-disable-vsync    Don't forcibly disable VSync
   -f, --fps NUMBER          Force game FPS, defaults to 120
   -c, --cwd PATH            Path to working dir that game process runs on
   -o, --open PATH           Path to GenshinImpact.exe/YuanShen.exe, can be
@@ -48,7 +47,6 @@ struct Args {
     game_cwd: Option<String>,
     enable_hdr: bool,
     fps: i32,
-    disable_vsync: bool,
     game_args: Vec<String>,
 }
 
@@ -59,7 +57,6 @@ fn parse_env_args() -> Result<Args, lexopt::Error> {
     let mut game_cwd: Option<String> = None;
     let mut enable_hdr = false;
     let mut fps: i32 = 120;
-    let mut disable_vsync = true;
     let mut game_args: Vec<String> = vec![];
 
     let mut parser = lexopt::Parser::from_env();
@@ -71,7 +68,10 @@ fn parse_env_args() -> Result<Args, lexopt::Error> {
             }
             Long("hdr") => enable_hdr = true,
             Short('n') | Long("no-disable-vsync") => {
-                disable_vsync = false;
+                warn!(
+                    "VSYNC disabling has been removed, this flag {:?} has no effect",
+                    arg
+                );
             }
             Short('f') | Long("fps") => {
                 fps = parser.value()?.parse()?;
@@ -95,7 +95,6 @@ fn parse_env_args() -> Result<Args, lexopt::Error> {
         game_cwd,
         enable_hdr,
         fps,
-        disable_vsync,
         game_args,
     })
 }
@@ -108,7 +107,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         enable_hdr,
         mut game_args,
         fps,
-        disable_vsync,
     } = parse_env_args()?;
 
     let game_path = match game_path {
@@ -179,16 +177,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     let p_fps = scan_fps_ptr(&ps, &m_up, &m_ua)
         .map_err(|e| error!("{}", e))
         .ok();
-    let p_vsync = if disable_vsync {
-        scan_vsync_ptr(&ps, &m_up).map_err(|e| error!("{}", e)).ok()
-    } else {
-        None
-    };
 
     info!(
-        "scan result: p_fps:{}, p_vsync:{}",
+        "scan result: p_fps:{}",
         p_fps.map_or("failure".to_string(), |v| format!("{:?}", v)),
-        p_vsync.map_or("failure".to_string(), |v| format!("{:?}", v)),
     );
     drop(m_up);
 
@@ -212,20 +204,6 @@ fn main() -> Result<(), Box<dyn Error>> {
                     error!("failed to write FPS");
                 } else {
                     info!("force FPS: {} -> {}", v, fps);
-                }
-            }
-        }
-
-        if let Some(p_vsync) = p_vsync {
-            let res = ps.read::<i32>(p_vsync);
-            if let Ok(v) = res {
-                if v != 0 {
-                    let res = ps.write::<i32>(p_vsync, &0);
-                    if res.is_err() {
-                        error!("failed to write VSync");
-                    } else {
-                        info!("VSync forcibly disabled");
-                    }
                 }
             }
         }
@@ -301,9 +279,7 @@ fn scan_fps_ptr(ps: &Process, m_up: &Module, m_ua: &Module) -> Result<*mut u8, B
     }
 }
 
-/**
- * 4.2 or before
- */
+// 4.2 or before
 fn _scan_fps_ptr_legacy_4_3(
     ps: &Process,
     m_up: &Module,
@@ -343,9 +319,7 @@ fn _scan_fps_ptr_legacy_4_3(
     }
 }
 
-/**
- * 3.6 or before
- */
+// 3.6 or before
 fn _scan_fps_ptr_legacy_3_6(m_up: &Module) -> Result<*mut u8, Box<dyn Error>> {
     let p_fps_anchor = m_up
         .pattern_scan("7F 0F 8B 05 ? ? ? ?")
@@ -356,7 +330,8 @@ fn _scan_fps_ptr_legacy_3_6(m_up: &Module) -> Result<*mut u8, Box<dyn Error>> {
     }
 }
 
-fn scan_vsync_ptr(ps: &Process, m_up: &Module) -> Result<*mut u8, Box<dyn Error>> {
+// broken
+fn _scan_vsync_ptr(ps: &Process, m_up: &Module) -> Result<*mut u8, Box<dyn Error>> {
     let p_vsync_anchor = m_up
         .pattern_scan("E8 ? ? ? ? 8B E8 49 8B 1E")
         .ok_or("VSync anchor pattern not found, try updating this tools")?;
