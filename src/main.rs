@@ -270,6 +270,46 @@ unsafe fn extract_address(
 
 fn scan_fps_ptr(ps: &Process, m_up: &Module, m_ua: &Module) -> Result<*mut u8, Box<dyn Error>> {
     let p_fps_anchor = m_ua
+        .pattern_scan("B9 3C 00 00 00 FF 15")
+        .ok_or("FPS anchor pattern not found, try updating this tools")?;
+    unsafe {
+        let pp_func_fps = extract_address(m_ua, p_fps_anchor.offset(5), 2, 6);
+
+        let mut p_func_fps = loop {
+            let p = ps.read::<u64>(pp_func_fps)?;
+            if p == 0 {
+                sleep(Duration::from_millis(200));
+                continue;
+            }
+            break (p as *mut u8);
+        };
+
+        loop {
+            let inst = *m_up.snapshot_addr(p_func_fps);
+            match inst {
+                // CALL
+                0xe8 | 0xe9 => {
+                    p_func_fps = extract_address(m_up, p_func_fps, 1, 5);
+                    continue;
+                }
+                _ => break,
+            }
+        }
+
+        let p_fps = extract_address(m_up, p_func_fps, 2, 6);
+        Ok(p_fps)
+    }
+}
+
+/**
+ * 4.2 or before
+ */
+fn _scan_fps_ptr_legacy_4_3(
+    ps: &Process,
+    m_up: &Module,
+    m_ua: &Module,
+) -> Result<*mut u8, Box<dyn Error>> {
+    let p_fps_anchor = m_ua
         .pattern_scan("E8 ? ? ? ? 85 C0 7E 07 E8 ? ? ? ? EB 05")
         .ok_or("FPS anchor pattern not found, try updating this tools")?;
     unsafe {
@@ -306,7 +346,7 @@ fn scan_fps_ptr(ps: &Process, m_up: &Module, m_ua: &Module) -> Result<*mut u8, B
 /**
  * 3.6 or before
  */
-fn _scan_fps_ptr_legacy(m_up: &Module) -> Result<*mut u8, Box<dyn Error>> {
+fn _scan_fps_ptr_legacy_3_6(m_up: &Module) -> Result<*mut u8, Box<dyn Error>> {
     let p_fps_anchor = m_up
         .pattern_scan("7F 0F 8B 05 ? ? ? ?")
         .ok_or("FPS anchor pattern not found")?;
